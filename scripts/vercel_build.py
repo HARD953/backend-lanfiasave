@@ -2,7 +2,7 @@
 Étape de build Vercel (déclarée dans pyproject.toml, [tool.vercel.scripts]).
 
 - Vérifie la présence des variables indispensables pour échouer avec un message clair.
-- Applique les migrations sur la base de production si DATABASE_URL est défini.
+- Exige une base PostgreSQL (DATABASE_URL ou variante préfixée) et y applique les migrations.
   (collectstatic est lancé automatiquement par Vercel.)
 """
 import os
@@ -17,13 +17,15 @@ from django.core.management import call_command  # noqa: E402
 
 
 def main():
-    missing = [v for v in ("DJANGO_SECRET_KEY", "DATABASE_URL") if not os.getenv(v)]
-    if "DJANGO_SECRET_KEY" in missing:
+    if not os.getenv("DJANGO_SECRET_KEY"):
         sys.exit("Variable DJANGO_SECRET_KEY manquante dans les Environment Variables du projet Vercel.")
-    django.setup()
-    if "DATABASE_URL" in missing:
-        print("DATABASE_URL absent : migrations ignorées. Ajoutez une base PostgreSQL (Neon, Supabase…).")
-        return
+    try:
+        django.setup()  # échoue avec un message clair si aucune base n'est configurée sur Vercel
+    except RuntimeError as exc:
+        sys.exit(str(exc))
+    from django.conf import settings
+
+    print(f"Base de données lue depuis la variable : {settings.DATABASE_URL_SOURCE}")
     print("Application des migrations…")
     call_command("migrate", interactive=False, verbosity=1)
     if os.getenv("SEED_DEMO", "").lower() in {"1", "true", "yes"}:

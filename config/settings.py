@@ -93,9 +93,35 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-if os.getenv("DATABASE_URL"):
+def find_database_url() -> tuple[str | None, str | None]:
+    """
+    URL PostgreSQL fournie par l'hébergeur. Les intégrations Vercel Marketplace (Neon, Supabase…) peuvent
+    préfixer les noms (ex. STORAGE_DATABASE_URL) : on accepte toutes les variantes usuelles.
+    Renvoie (nom de la variable, valeur).
+    """
+    for name in ("DATABASE_URL", "POSTGRES_URL", "POSTGRES_PRISMA_URL", "NEON_DATABASE_URL"):
+        if os.getenv(name):
+            return name, os.environ[name]
+    candidates = sorted(
+        (k for k, v in os.environ.items()
+         if v.startswith(("postgres://", "postgresql://"))
+         and k.endswith(("DATABASE_URL", "POSTGRES_URL")) and "UNPOOLED" not in k and "NON_POOLING" not in k),
+    )
+    return (candidates[0], os.environ[candidates[0]]) if candidates else (None, None)
+
+
+DATABASE_URL_SOURCE, _database_url = find_database_url()
+ON_VERCEL = bool(os.getenv("VERCEL"))
+
+if ON_VERCEL and not _database_url:
+    raise RuntimeError(
+        "Aucune base PostgreSQL configurée sur Vercel : connectez Neon (Storage → Neon → Connect) "
+        "ou ajoutez la variable DATABASE_URL, puis redéployez."
+    )
+
+if _database_url:
     # Hébergement (Vercel + Neon/Supabase…) : une seule URL de connexion, SSL par défaut.
-    _db = urllib.parse.urlparse(os.environ["DATABASE_URL"])
+    _db = urllib.parse.urlparse(_database_url)
     _query = dict(urllib.parse.parse_qsl(_db.query))
     DATABASES = {
         "default": {
@@ -196,4 +222,6 @@ LOGGING = {
     "disable_existing_loggers": False,
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "root": {"handlers": ["console"], "level": os.getenv("LOG_LEVEL", "INFO")},
+    # Les erreurs 500 (traceback complète) apparaissent dans les logs de l'hébergeur (Vercel → Logs).
+    "loggers": {"django.request": {"handlers": ["console"], "level": "ERROR", "propagate": False}},
 }

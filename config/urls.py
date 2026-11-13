@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.db import connection, transaction
 from django.http import JsonResponse
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
@@ -36,8 +37,23 @@ router.register("appeals", AppealViewSet, basename="appeal")
 router.register("audit-events", AuditEventViewSet, basename="audit-event")
 
 
+@transaction.non_atomic_requests
 def health(_request):
-    return JsonResponse({"status": "ok", "service": "lanfiasave-api"})
+    """État du service et de la base, sans jamais exposer de secret. 503 si la base est injoignable."""
+    from django.conf import settings
+    from django.db.migrations.executor import MigrationExecutor
+
+    body = {"service": "lanfiasave-api", "database_source": settings.DATABASE_URL_SOURCE or "POSTGRES_*"}
+    try:
+        connection.ensure_connection()
+        executor = MigrationExecutor(connection)
+        pending = executor.migration_plan(executor.loader.graph.leaf_nodes())
+        body.update(status="ok" if not pending else "migrations_pending", database="ok",
+                    pending_migrations=len(pending))
+        return JsonResponse(body, status=200 if not pending else 503)
+    except Exception as exc:  # noqa: BLE001 — diagnostic volontairement large
+        body.update(status="error", database="unreachable", error=type(exc).__name__)
+        return JsonResponse(body, status=503)
 
 
 api_v1 = [

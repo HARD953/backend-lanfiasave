@@ -43,7 +43,12 @@ build par `scripts/vercel_build.py`.
 
    Ne pas définir `DJANGO_DEBUG` (désactivé par défaut).
 3. **Redéployer** (*Deployments → Redeploy*). Vérification : `https://<projet>.vercel.app/health/` répond
-   `{"status": "ok"}` et la documentation est sur `/api/docs/`.
+   `{"status": "ok", "database": "ok"}` et la documentation est sur `/api/docs/`.
+
+Diagnostic : `/health/` indique la variable utilisée (`database_source`, les noms préfixés comme
+`STORAGE_DATABASE_URL` sont reconnus) et renvoie 503 avec `database: unreachable` ou `status: migrations_pending`
+en cas de problème. Sur Vercel, le build échoue explicitement si aucune base n'est connectée. Les tracebacks des
+erreurs 500 sont visibles dans *Vercel → projet → Logs*.
 
 Limites à connaître : chaque requête est servie par une fonction serverless (pas de tâches de fond persistantes) ;
 le système de fichiers est en lecture seule, donc les futures pièces justificatives devront être stockées sur un
