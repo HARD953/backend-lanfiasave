@@ -5,6 +5,7 @@ Toutes les valeurs sensibles viennent de l'environnement (fichier .env non versi
 Voir .env.example à la racine du dépôt.
 """
 import os
+import urllib.parse
 from datetime import timedelta
 from pathlib import Path
 
@@ -27,6 +28,14 @@ def env_list(name: str, default: str = "") -> list[str]:
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-only-insecure-key-change-me")
 DEBUG = env_bool("DJANGO_DEBUG", False)
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1")
+CSRF_TRUSTED_ORIGINS = env_list("DJANGO_CSRF_TRUSTED_ORIGINS")
+
+# Vercel fournit automatiquement les domaines du déploiement : on les autorise sans configuration.
+for _var in ("VERCEL_URL", "VERCEL_BRANCH_URL", "VERCEL_PROJECT_PRODUCTION_URL"):
+    _host = os.getenv(_var)
+    if _host and _host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(_host)
+        CSRF_TRUSTED_ORIGINS.append(f"https://{_host}")
 
 if not DEBUG and SECRET_KEY.startswith("dev-only"):
     raise RuntimeError("DJANGO_SECRET_KEY doit être défini hors mode DEBUG.")
@@ -84,7 +93,24 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-if os.getenv("DB_ENGINE", "postgres") == "sqlite":
+if os.getenv("DATABASE_URL"):
+    # Hébergement (Vercel + Neon/Supabase…) : une seule URL de connexion, SSL par défaut.
+    _db = urllib.parse.urlparse(os.environ["DATABASE_URL"])
+    _query = dict(urllib.parse.parse_qsl(_db.query))
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": _db.path.lstrip("/"),
+            "USER": urllib.parse.unquote(_db.username or ""),
+            "PASSWORD": urllib.parse.unquote(_db.password or ""),
+            "HOST": _db.hostname,
+            "PORT": _db.port or 5432,
+            "ATOMIC_REQUESTS": True,
+            "CONN_MAX_AGE": 0,
+            "OPTIONS": {"sslmode": _query.get("sslmode", "require")},
+        }
+    }
+elif os.getenv("DB_ENGINE", "postgres") == "sqlite":
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 else:
     DATABASES = {

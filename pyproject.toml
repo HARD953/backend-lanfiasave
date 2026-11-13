@@ -1,3 +1,27 @@
+[project]
+name = "lanfiasave-backend"
+version = "1.0.0"
+description = "API REST de la plateforme LanfiaSave 2.1"
+requires-python = ">=3.12"
+# Garder synchronisé avec requirements.txt (utilisé par l'image Docker).
+dependencies = [
+    "Django>=6.0,<6.1",
+    "djangorestframework>=3.16",
+    "djangorestframework-simplejwt>=5.5",
+    "django-cors-headers>=4.9",
+    "django-filter>=25.1",
+    "drf-spectacular>=0.30",
+    "psycopg[binary]>=3.2",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.0", "pytest-django>=4.14", "ruff>=0.14"]
+
+# Déploiement Vercel : migrations appliquées à chaque build si une base est configurée.
+[tool.vercel.scripts]
+build = "python scripts/vercel_build.py"
+
 [tool.ruff]
 line-length = 120
 extend-exclude = ["*/migrations/*"]

@@ -22,6 +22,33 @@ DJANGO_DEBUG=true .venv/bin/python manage.py runserver 0.0.0.0:8000
 - Santé : <http://localhost:8000/health/>
 - Tout en Docker : `docker compose up --build`
 
+## Déploiement sur Vercel
+
+Le projet est prêt pour le support Django natif de Vercel : dépendances dans `pyproject.toml` (+ `uv.lock`),
+Python 3.12 (`.python-version`), `collectstatic` lancé automatiquement par Vercel, et migrations appliquées à chaque
+build par `scripts/vercel_build.py`.
+
+1. **Base PostgreSQL** : Vercel n'héberge pas de base dans le projet. Dans le tableau de bord Vercel, onglet
+   *Storage* (ou *Marketplace*), ajoutez **Neon** (ou Supabase) et liez-la au projet : la variable `DATABASE_URL`
+   est créée automatiquement. Le SSL est exigé par défaut.
+2. **Variables d'environnement** (*Settings → Environment Variables*) :
+
+   | Variable | Valeur |
+   |---|---|
+   | `DJANGO_SECRET_KEY` | longue chaîne aléatoire (`python -c "import secrets;print(secrets.token_urlsafe(50))"`) |
+   | `DATABASE_URL` | fournie par l'intégration Neon/Supabase |
+   | `CORS_ALLOWED_ORIGINS` | URL du portail web, ex. `https://web-lanfiasave.vercel.app` |
+   | `DJANGO_ALLOWED_HOSTS` | *facultatif* : domaine personnalisé (les domaines `*.vercel.app` du déploiement sont autorisés automatiquement) |
+   | `SEED_DEMO` + `DEMO_PASSWORD` | *facultatif, démonstration uniquement* : `true` charge le jeu synthétique au build |
+
+   Ne pas définir `DJANGO_DEBUG` (désactivé par défaut).
+3. **Redéployer** (*Deployments → Redeploy*). Vérification : `https://<projet>.vercel.app/health/` répond
+   `{"status": "ok"}` et la documentation est sur `/api/docs/`.
+
+Limites à connaître : chaque requête est servie par une fonction serverless (pas de tâches de fond persistantes) ;
+le système de fichiers est en lecture seule, donc les futures pièces justificatives devront être stockées sur un
+stockage objet (Vercel Blob, S3) ; la limitation de débit est appliquée par instance.
+
 ## Modules
 
 | Module | Contenu |
