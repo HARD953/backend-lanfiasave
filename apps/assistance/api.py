@@ -16,7 +16,7 @@ class AssistanceSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     person_name = serializers.CharField(source="person.display_name", read_only=True)
     person_code = serializers.CharField(source="person.public_code", read_only=True)
-    provider_name = serializers.CharField(source="provider.__str__", read_only=True, default=None)
+    provider_name = serializers.SerializerMethodField()
     program_name = serializers.CharField(source="program.name", read_only=True, default=None)
     operation_title = serializers.CharField(source="operation_case.operation.title", read_only=True, default=None)
     recorded_by_name = serializers.CharField(source="recorded_by.get_full_name", read_only=True, default=None)
@@ -30,6 +30,9 @@ class AssistanceSerializer(serializers.ModelSerializer):
                   "status_label", "planned_date", "delivered_at", "delivery_proof", "delivery_channel",
                   "cancel_reason", "recorded_by_name", "delivered_by_name", "created_at"]
         read_only_fields = ["organization", "status", "delivered_at", "cancel_reason", "household"]
+
+    def get_provider_name(self, obj):
+        return str(obj.provider) if obj.provider_id else None
 
     def validate(self, attrs):
         person = attrs.get("person") or getattr(self.instance, "person", None)

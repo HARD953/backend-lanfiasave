@@ -178,6 +178,7 @@ def test_aid_lifecycle_with_proof_and_cancellation(client_for, social_worker, en
     r = sw.post(f"/api/v1/assistances/{aid}/deliver/", {"delivery_proof": "OM-TX-001",
                                                         "delivery_channel": "mobile_money"}, format="json")
     assert r.status_code == 200 and r.data["status"] == "delivered"
+    assert r.data["provider_name"] is None  # pas de texte technique quand aucune structure n'est indiquée
     assert OperationCase.objects.get(pk=case_id).status == "supported"
     assert sw.patch(f"/api/v1/assistances/{aid}/", {"amount": 1}, format="json").status_code == 409
     assert sw.post(f"/api/v1/assistances/{aid}/cancel/", {"reason": ""}, format="json").status_code == 400

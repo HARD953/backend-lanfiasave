@@ -44,7 +44,7 @@ class PartnerViewSet(OrgScopedViewSetMixin, mixins.CreateModelMixin, mixins.Retr
 class OperationSerializer(serializers.ModelSerializer):
     kind_label = serializers.CharField(source="get_kind_display", read_only=True)
     status_label = serializers.CharField(source="get_status_display", read_only=True)
-    initiated_by_name = serializers.CharField(source="initiated_by.__str__", read_only=True, default=None)
+    initiated_by_name = serializers.SerializerMethodField()
     territory_name = serializers.CharField(source="territory.name", read_only=True, default=None)
     partners_detail = PartnerSerializer(source="partners", many=True, read_only=True)
     persons_count = serializers.IntegerField(read_only=True, default=0)
@@ -57,6 +57,9 @@ class OperationSerializer(serializers.ModelSerializer):
                   "estimated_households", "compensation_policy", "compensation_amount_per_household",
                   "persons_count", "created_at"]
         read_only_fields = ["code", "status"]
+
+    def get_initiated_by_name(self, obj):
+        return obj.initiated_by.name if obj.initiated_by_id else None
 
     def validate(self, attrs):
         org = attrs.get("organization") or (self.instance.organization if self.instance else None)
