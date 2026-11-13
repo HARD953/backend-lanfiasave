@@ -7,9 +7,13 @@ from rest_framework.views import APIView
 
 from apps.beneficiaries.models import Household, HouseholdMembership, Person
 from apps.beneficiaries.services import detect_duplicates
+from apps.beneficiaries.vulnerabilities import CHOICES as VULNERABILITY_CHOICES
+from apps.beneficiaries.vulnerability_services import flag, flag_from_survey
 from apps.core.audit import audit
 from apps.core.idempotency import IdempotentCreateMixin
 from apps.core.permissions import IsStaffMember, OrgScopedViewSetMixin, require_org_perm
+from apps.operations.models import Operation
+from apps.operations.services import enroll
 from apps.organizations.models import Organization
 from apps.scoring.api import ScoreResultSerializer
 from apps.scoring.services import score_survey_response
@@ -63,6 +67,7 @@ class SurveyResponseViewSet(IdempotentCreateMixin, OrgScopedViewSetMixin, mixins
         self.check_create_scope(serializer.validated_data["organization"].pk)
         resp = serializer.save(collected_by=self.request.user)
         audit("survey.submitted", obj=resp)
+        flag_from_survey(resp, self.request.user)
 
     @action(detail=True, methods=["post"])
     def score(self, request, pk=None):
@@ -89,6 +94,8 @@ class CollectMemberSerializer(serializers.Serializer):
     relation = serializers.ChoiceField(choices=HouseholdMembership.Relation.choices)
     has_identity_document = serializers.BooleanField(default=False)
     answers = serializers.DictField(required=False, default=dict)
+    vulnerabilities = serializers.ListField(child=serializers.ChoiceField(choices=VULNERABILITY_CHOICES),
+                                            required=False, default=list)
 
 
 class CollectSubmissionSerializer(serializers.Serializer):
@@ -104,6 +111,8 @@ class CollectSubmissionSerializer(serializers.Serializer):
     emergency = serializers.BooleanField(default=False)
     collected_at = serializers.DateTimeField()
     device_id = serializers.CharField(max_length=80, allow_blank=True, required=False, default="")
+    operation = serializers.PrimaryKeyRelatedField(queryset=Operation.objects.all(), required=False, allow_null=True,
+                                                   help_text="Opération à laquelle rattacher le ménage")
     members = CollectMemberSerializer(many=True)
 
     def validate_members(self, members):
@@ -117,6 +126,9 @@ class CollectSubmissionSerializer(serializers.Serializer):
         for m in attrs["members"]:
             if m.get("answers"):
                 attrs["questionnaire"].validate_answers(m["answers"])
+        op = attrs.get("operation")
+        if op is not None and op.organization_id != attrs["organization"].pk:
+            raise serializers.ValidationError({"operation": "Opération d'une autre organisation."})
         return attrs
 
 
@@ -129,6 +141,8 @@ class CollectSubmissionView(APIView):
         d = ser.validated_data
         require_org_perm(request.user, "person.create", d["organization"].pk)
         require_org_perm(request.user, "survey.submit", d["organization"].pk)
+        if d.get("operation"):
+            require_org_perm(request.user, "operation.enroll", d["organization"].pk)
 
         member_uuids = [m["client_uuid"] for m in d["members"]]
         existing = SurveyResponse.objects.filter(client_uuid__in=member_uuids).select_related("person", "household")
@@ -163,8 +177,17 @@ class CollectSubmissionView(APIView):
                 first = existing.first()
                 return Response(self._summary(first.household, list(existing)), status=status.HTTP_200_OK)
             raise
-        for r in responses:
+        head_answers = next((m.get("answers") or {} for m in d["members"] if m["relation"] == "head"), {})
+        for r, m in zip(responses, d["members"]):
             detect_duplicates(r.person)
+            flag_from_survey(r, request.user)
+            for code in m.get("vulnerabilities") or []:
+                flag(r.person, code, source="survey", user=request.user)
+            if d.get("operation"):
+                enroll(d["operation"], r.person, user=request.user, household=hh,
+                       lost_housing=head_answers.get("lost_housing") == "yes",
+                       lost_livelihood=head_answers.get("lost_livelihood") == "yes",
+                       lost_documents=head_answers.get("lost_documents") == "yes")
         return Response(self._summary(hh, responses), status=status.HTTP_201_CREATED)
 
     @staticmethod

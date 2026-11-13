@@ -94,7 +94,7 @@ def test_tc06_score_is_versioned_and_explained(client_for, enumerator, social_wo
     resp_id = sync["members"][0]["survey_response_id"]
     r = client_for(social_worker).post(f"/api/v1/survey-responses/{resp_id}/score/")
     assert r.status_code == 201, r.content
-    assert r.data["scoring_version_label"] == "VULN v1"
+    assert r.data["scoring_version_label"] == "VULN v2"
     assert len(r.data["details"]["dimensions"]) == 7
     assert r.data["details"]["missing"], "les questions non répondues doivent être listées"
     assert "consultatif" in r.data["disclaimer"]

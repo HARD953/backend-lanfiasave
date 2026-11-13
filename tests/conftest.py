@@ -9,7 +9,7 @@ from apps.accounts.models import Membership, User
 from apps.accounts.roles import Role
 from apps.organizations.models import Organization
 from apps.programs.models import EligibilityRuleVersion, Program
-from apps.surveys.definitions import QUESTIONNAIRE_V1
+from apps.surveys.definitions import QUESTIONNAIRE_V2
 from apps.surveys.models import QuestionnaireVersion
 from apps.territories.models import Territory
 
@@ -78,9 +78,9 @@ def client_for():
 
 @pytest.fixture
 def questionnaire(db):
-    return QuestionnaireVersion.objects.create(code="RECENSEMENT", version=1, title="Recensement",
-                                               definition=QUESTIONNAIRE_V1, status="published",
-                                               published_at=timezone.now())
+    """Questionnaire v2 publié, installé par la migration surveys.0002."""
+    return QuestionnaireVersion.objects.get(code="RECENSEMENT", version=QUESTIONNAIRE_V2["version"],
+                                            status="published")
 
 
 @pytest.fixture

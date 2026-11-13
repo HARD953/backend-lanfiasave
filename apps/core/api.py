@@ -118,6 +118,69 @@ class OverviewReportView(APIView):
             "score_bands": bands,
             "duplicates_open": Person.objects.filter(organization__in=orgs).filter(
                 Q(duplicate_candidates__status="open")).distinct().count(),
+            **_vulnerability_and_aid_indicators(orgs),
+        })
+
+
+def _vulnerability_and_aid_indicators(orgs):
+    from django.db.models import Sum
+
+    from apps.assistance.models import Assistance
+    from apps.beneficiaries.models import PersonVulnerability
+    from apps.beneficiaries.vulnerabilities import BY_CODE, SENSITIVE_CODES
+    from apps.operations.models import Operation, OperationCase
+
+    vulns = (PersonVulnerability.objects.filter(organization__in=orgs).exclude(status="resolved")
+             .exclude(category__in=SENSITIVE_CODES).values_list("category").annotate(n=Count("person", distinct=True))
+             .order_by("-n"))
+    ops = Operation.objects.filter(organization__in=orgs)
+    cases = OperationCase.objects.filter(organization__in=orgs)
+    aids = Assistance.objects.filter(organization__in=orgs)
+    delivered = aids.filter(status="delivered")
+    helped_cases = cases.filter(assistances__status="delivered").distinct().count()
+    return {
+        "vulnerabilities": [{"code": c, "label": BY_CODE[c].label if c in BY_CODE else c, "persons": n}
+                            for c, n in vulns[:12]],
+        "operations": {
+            "active": ops.exclude(status="closed").count(),
+            "total": ops.count(),
+            "affected_persons": cases.count(),
+            "affected_without_aid": cases.count() - helped_cases,
+            "lost_contact": cases.filter(status="lost_contact").count(),
+        },
+        "assistance": {
+            "delivered": delivered.count(),
+            "planned": aids.filter(status="planned").count(),
+            "delivered_amount": delivered.aggregate(s=Sum("amount"))["s"] or 0,
+            "persons_helped": delivered.values("person").distinct().count(),
+            "by_category": dict(delivered.values_list("category").annotate(n=Count("id"))),
+        },
+    }
+
+
+class CatalogsView(APIView):
+    """Référentiels affichés par le portail et les applications (libellés, listes de choix)."""
+
+    permission_classes = [IsStaffMember]
+
+    def get(self, request):
+        from apps.assistance.models import Assistance
+        from apps.beneficiaries.vulnerabilities import catalog_payload
+        from apps.operations.models import Operation, OperationCase, Partner
+
+        def ch(choices):
+            return [{"value": v, "label": label} for v, label in choices]
+
+        return Response({
+            "vulnerabilities": catalog_payload(bool(request.user.organizations_with("person.view_sensitive"))),
+            "assistance_categories": ch(Assistance.Category.choices),
+            "delivery_channels": ch(Assistance._meta.get_field("delivery_channel").choices),
+            "operation_kinds": ch(Operation.Kind.choices),
+            "operation_statuses": ch(Operation.Status.choices),
+            "case_statuses": ch(OperationCase.Status.choices),
+            "case_needs": ch(OperationCase.NEEDS),
+            "occupancy": ch(OperationCase.Occupancy.choices),
+            "partner_kinds": ch(Partner.Kind.choices),
         })
 
 
@@ -196,3 +259,41 @@ class MyAppealCreateView(APIView):
         appeal = file_appeal(decision, request.user, request.data.get("motive", ""), via="beneficiary_app")
         return Response({"id": str(appeal.id), "status": appeal.status, "due_date": appeal.due_date},
                         status=status.HTTP_201_CREATED)
+
+
+class MyAssistanceView(APIView):
+    """Aides reçues ou prévues pour le bénéficiaire (sans montant planifié interne ni notes)."""
+
+    permission_classes = [IsAuthenticated, IsBeneficiary]
+
+    def get(self, request):
+        from apps.assistance.models import Assistance
+
+        qs = (Assistance.objects.filter(person=request.user.beneficiary).exclude(status="cancelled")
+              .select_related("provider").order_by("-delivered_at", "-planned_date", "-created_at"))
+        return Response([{
+            "id": str(a.id), "category": a.category, "category_label": a.get_category_display(),
+            "description": a.description, "status": a.status, "status_label": a.get_status_display(),
+            "amount": int(a.amount) if a.amount is not None and a.status == "delivered" else None,
+            "quantity": str(a.quantity) if a.quantity is not None else None, "unit": a.unit,
+            "provider": str(a.provider) if a.provider else None,
+            "date": a.delivered_at or a.planned_date,
+        } for a in qs])
+
+
+class MyCasesView(APIView):
+    """Dossiers d'accompagnement du bénéficiaire (déguerpissement, sinistre…)."""
+
+    permission_classes = [IsAuthenticated, IsBeneficiary]
+
+    def get(self, request):
+        from apps.operations.models import OperationCase
+
+        labels = dict(OperationCase.NEEDS)
+        qs = OperationCase.objects.filter(person=request.user.beneficiary).select_related("operation")
+        return Response([{
+            "id": str(c.id), "case_number": c.case_number, "operation": c.operation.title,
+            "operation_kind": c.operation.get_kind_display(), "status": c.status,
+            "status_label": c.get_status_display(), "needs": [labels.get(n, n) for n in c.needs],
+            "relocation_site": c.relocation_site, "opened_at": c.created_at,
+        } for c in qs])

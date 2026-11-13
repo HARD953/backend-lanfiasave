@@ -6,18 +6,24 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 
+from apps.accounts.admin_api import AdminOrganizationViewSet, AdminUserViewSet, ChangePasswordView, RolesCatalogView
 from apps.accounts.api import BeneficiaryLoginView, LoginView, MeView
-from apps.beneficiaries.api import HouseholdViewSet, PersonViewSet
+from apps.assistance.api import AssistanceViewSet
+from apps.beneficiaries.api import HouseholdViewSet, PersonViewSet, VulnerabilityViewSet
 from apps.cases.api import AppealViewSet, ApplicationViewSet, DecisionViewSet
 from apps.core.api import (
     AuditEventViewSet,
+    CatalogsView,
     MyAppealCreateView,
     MyApplicationsView,
+    MyAssistanceView,
+    MyCasesView,
     MyProfileView,
     OrganizationViewSet,
     OverviewReportView,
     TerritoryViewSet,
 )
+from apps.operations.api import OperationCaseViewSet, OperationViewSet, PartnerViewSet
 from apps.programs.api import ProgramViewSet
 from apps.scoring.api import ScoreResultViewSet
 from apps.surveys.api import CollectSubmissionView, QuestionnaireViewSet, SurveyResponseViewSet
@@ -35,6 +41,13 @@ router.register("applications", ApplicationViewSet, basename="application")
 router.register("decisions", DecisionViewSet, basename="decision")
 router.register("appeals", AppealViewSet, basename="appeal")
 router.register("audit-events", AuditEventViewSet, basename="audit-event")
+router.register("vulnerabilities", VulnerabilityViewSet, basename="vulnerability")
+router.register("partners", PartnerViewSet, basename="partner")
+router.register("operations", OperationViewSet, basename="operation")
+router.register("operation-cases", OperationCaseViewSet, basename="operation-case")
+router.register("assistances", AssistanceViewSet, basename="assistance")
+router.register("admin/users", AdminUserViewSet, basename="admin-user")
+router.register("admin/organizations", AdminOrganizationViewSet, basename="admin-organization")
 
 
 @transaction.non_atomic_requests
@@ -61,6 +74,11 @@ api_v1 = [
     path("auth/beneficiary/login/", BeneficiaryLoginView.as_view(), name="beneficiary-login"),
     path("auth/refresh/", TokenRefreshView.as_view(), name="token-refresh"),
     path("auth/me/", MeView.as_view(), name="me"),
+    path("auth/change-password/", ChangePasswordView.as_view(), name="change-password"),
+    path("admin/roles/", RolesCatalogView.as_view(), name="admin-roles"),
+    path("catalogs/", CatalogsView.as_view(), name="catalogs"),
+    path("me/assistances/", MyAssistanceView.as_view(), name="my-assistances"),
+    path("me/cases/", MyCasesView.as_view(), name="my-cases"),
     path("collect/submissions/", CollectSubmissionView.as_view(), name="collect-submission"),
     path("reports/overview/", OverviewReportView.as_view(), name="report-overview"),
     path("me/profile/", MyProfileView.as_view(), name="my-profile"),

@@ -1,6 +1,6 @@
 from apps.core.audit import audit
 
-from .engine import SCORING_V1, compute_score
+from .engine import SCORING_V2, compute_score
 from .models import ScoreResult, ScoringModelVersion
 
 
@@ -8,9 +8,10 @@ def active_scoring_version() -> ScoringModelVersion:
     version = ScoringModelVersion.objects.filter(is_active=True).order_by("-version").first()
     if version is None:
         version, _ = ScoringModelVersion.objects.get_or_create(
-            code=SCORING_V1["code"], version=SCORING_V1["version"],
-            defaults={"config": SCORING_V1, "is_active": True,
-                      "notes": "Grille de référence SRC-03. Seuils historiques non calibrés scientifiquement."})
+            code=SCORING_V2["code"], version=SCORING_V2["version"],
+            defaults={"config": SCORING_V2, "is_active": True,
+                      "notes": "Grille v2 : critères enrichis (alimentation, logement, chocs, enfance). "
+                               "Seuils historiques non calibrés scientifiquement."})
     return version
 
 

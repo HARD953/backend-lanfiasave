@@ -60,6 +60,8 @@ INSTALLED_APPS = [
     "apps.scoring",
     "apps.programs",
     "apps.cases",
+    "apps.operations",
+    "apps.assistance",
 ]
 
 MIDDLEWARE = [

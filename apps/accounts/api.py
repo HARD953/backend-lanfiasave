@@ -38,7 +38,8 @@ class MeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["id", "username", "full_name", "email", "phone", "kind", "must_change_password", "memberships"]
+        fields = ["id", "username", "full_name", "email", "phone", "kind", "is_superuser", "must_change_password",
+                  "memberships"]
 
     def get_memberships(self, obj):
         return MembershipSerializer(obj.active_memberships(), many=True).data

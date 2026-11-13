@@ -51,28 +51,52 @@ P = {
     # Pilotage
     "report.aggregate": "Consulter les indicateurs agrégés",
     "audit.view": "Consulter le journal d'audit",
+    # Administration des comptes
+    "user.manage": "Créer, modifier et désactiver les comptes de l'organisation",
+    # Structures partenaires (gouvernement, collectivités, entreprises minières, ONG…)
+    "partner.view": "Consulter les structures partenaires",
+    "partner.manage": "Gérer les structures partenaires",
+    # Opérations / événements (déguerpissements, catastrophes, sites miniers…)
+    "operation.view": "Consulter les opérations et les personnes affectées",
+    "operation.manage": "Créer et piloter les opérations",
+    "operation.enroll": "Ouvrir des dossiers de personnes affectées",
+    # Aides
+    "assistance.view": "Consulter les aides",
+    "assistance.record": "Planifier une aide",
+    "assistance.deliver": "Confirmer la remise d'une aide",
+    # Profils de vulnérabilité
+    "vulnerability.manage": "Qualifier les vulnérabilités d'une personne",
 }
 
 _VIEW = {"territory.view", "person.view", "survey.view", "score.view", "program.view", "application.view"}
 
 ROLE_PERMISSIONS: dict[str, set[str]] = {
     Role.ORG_ADMIN: {"territory.view", "territory.manage", "organization.manage_members", "program.view",
-                     "report.aggregate", "audit.view"},
-    Role.PROGRAM_MANAGER: _VIEW | {"program.manage", "report.aggregate", "application.create"},
+                     "report.aggregate", "audit.view", "user.manage", "partner.view", "partner.manage",
+                     "operation.view", "assistance.view"},
+    Role.PROGRAM_MANAGER: _VIEW | {"program.manage", "report.aggregate", "application.create", "partner.view",
+                                   "partner.manage", "operation.view", "operation.manage", "operation.enroll",
+                                   "assistance.view", "assistance.record"},
     Role.SOCIAL_WORKER: _VIEW | {"person.view_sensitive", "person.create", "person.update", "survey.submit",
                                  "score.compute", "application.create", "application.review", "appeal.create",
-                                 "report.aggregate"},
-    Role.COMMITTEE_MEMBER: _VIEW | {"decision.create", "appeal.resolve"},
+                                 "report.aggregate", "partner.view", "operation.view", "operation.enroll",
+                                 "assistance.view", "assistance.record", "assistance.deliver", "vulnerability.manage"},
+    Role.COMMITTEE_MEMBER: _VIEW | {"decision.create", "appeal.resolve", "operation.view", "assistance.view"},
     Role.ENUMERATOR: {"territory.view", "person.view", "person.create", "person.update", "survey.view",
-                      "survey.submit", "program.view"},
+                      "survey.submit", "program.view", "operation.view", "operation.enroll"},
     Role.FIELD_SUPERVISOR: _VIEW | {"person.create", "person.update", "person.verify", "person.merge",
-                                    "survey.submit", "report.aggregate"},
+                                    "survey.submit", "report.aggregate", "partner.view", "operation.view",
+                                    "operation.enroll", "assistance.view", "assistance.deliver",
+                                    "vulnerability.manage"},
     Role.TRAINING_MANAGER: {"territory.view", "person.view", "program.view", "report.aggregate"},
-    Role.INSERTION_OFFICER: {"territory.view", "person.view", "program.view", "report.aggregate"},
+    Role.INSERTION_OFFICER: {"territory.view", "person.view", "program.view", "report.aggregate",
+                             "assistance.view", "assistance.record"},
     Role.MENTOR: {"territory.view", "person.view"},
-    Role.FINANCE_OFFICER: {"program.view", "report.aggregate"},
+    Role.FINANCE_OFFICER: {"program.view", "report.aggregate", "partner.view", "operation.view", "person.view",
+                           "assistance.view", "assistance.record", "assistance.deliver"},
     Role.FUNDER: {"program.view", "report.aggregate"},
-    Role.AUDITOR: {"audit.view", "report.aggregate", "program.view"},
+    Role.AUDITOR: {"audit.view", "report.aggregate", "program.view", "operation.view", "assistance.view",
+                   "partner.view"},
 }
 
 assert all(p in P for perms in ROLE_PERMISSIONS.values() for p in perms), "Permission inconnue dans la matrice"

@@ -216,3 +216,85 @@ class HouseholdViewSet(IdempotentCreateMixin, OrgScopedViewSetMixin, mixins.Crea
                                                    start_date=request.data.get("start_date") or timezone.localdate())
         audit("household.member_added", obj=hh, data={"person": str(person.pk)})
         return Response(HouseholdMembershipSerializer(m).data, status=201)
+
+
+# --- Profils de vulnérabilité ------------------------------------------------------------------------------------
+
+class VulnerabilitySerializer(serializers.ModelSerializer):
+    label = serializers.CharField(read_only=True)
+    group = serializers.SerializerMethodField()
+    status_label = serializers.CharField(source="get_status_display", read_only=True)
+    source_label = serializers.CharField(source="get_source_display", read_only=True)
+    operation_title = serializers.CharField(source="operation.title", read_only=True, default=None)
+    recorded_by_name = serializers.CharField(source="recorded_by.get_full_name", read_only=True, default=None)
+
+    class Meta:
+        from .models import PersonVulnerability
+
+        model = PersonVulnerability
+        fields = ["id", "person", "category", "label", "group", "status", "status_label", "source", "source_label",
+                  "notes", "operation", "operation_title", "recorded_by_name", "confirmed_at", "resolved_at",
+                  "created_at"]
+        read_only_fields = ["status", "source", "operation", "confirmed_at", "resolved_at"]
+
+    def get_group(self, obj):
+        from .vulnerabilities import BY_CODE, GROUPS
+
+        c = BY_CODE.get(obj.category)
+        return GROUPS[c.group] if c else ""
+
+    def validate_category(self, value):
+        from .vulnerabilities import BY_CODE
+
+        if value not in BY_CODE:
+            raise serializers.ValidationError("Catégorie inconnue.")
+        return value
+
+
+class VulnerabilityViewSet(OrgScopedViewSetMixin, mixins.CreateModelMixin, mixins.ListModelMixin,
+                           mixins.RetrieveModelMixin, viewsets.GenericViewSet):
+    """Situations de vulnérabilité. Les catégories sensibles sont masquées aux rôles non habilités."""
+
+    serializer_class = VulnerabilitySerializer
+    perms = {"default": "person.view", "create": "vulnerability.manage", "confirm": "vulnerability.manage",
+             "resolve": "vulnerability.manage"}
+    filterset_fields = ["person", "category", "status", "organization"]
+
+    def get_queryset(self):
+        from .models import PersonVulnerability
+        from .vulnerabilities import SENSITIVE_CODES
+
+        self.queryset = PersonVulnerability.objects.select_related("operation", "recorded_by")
+        qs = super().get_queryset()
+        allowed = self.request.user.organizations_with("person.view_sensitive")
+        from django.db.models import Q
+
+        return qs.filter(Q(organization__in=allowed) | ~Q(category__in=SENSITIVE_CODES))
+
+    def create(self, request, *args, **kwargs):
+        from .vulnerabilities import SENSITIVE_CODES
+        from .vulnerability_services import flag
+
+        person = get_object_or_404(Person, pk=request.data.get("person"))
+        self.check_create_scope(person.organization_id)
+        category = request.data.get("category")
+        self.get_serializer().validate_category(category)
+        if category in SENSITIVE_CODES:
+            require_org_perm(request.user, "person.view_sensitive", person.organization_id, obj=person)
+        v, created = flag(person, category, source="agent", user=request.user,
+                          status="confirmed" if request.data.get("confirmed", True) else "suspected",
+                          notes=request.data.get("notes", ""))
+        return Response(self.get_serializer(v).data, status=201 if created else 200)
+
+    @action(detail=True, methods=["post"])
+    def confirm(self, request, pk=None):
+        from .vulnerability_services import confirm
+
+        return Response(self.get_serializer(confirm(self.get_object(), request.user)).data)
+
+    @action(detail=True, methods=["post"])
+    def resolve(self, request, pk=None):
+        from .vulnerability_services import resolve
+
+        return Response(self.get_serializer(resolve(self.get_object(), request.user,
+                                                    request.data.get("notes", ""))).data)

@@ -151,3 +151,60 @@ def compute_score(answers: dict, config: dict = SCORING_V1) -> ScoreOutcome:
     return ScoreOutcome(total=total, band={"code": band["code"], "label": band["label"]},
                         completeness=completeness, is_reliable=completeness >= config["min_completeness"],
                         dimensions=dimensions, missing=missing)
+
+
+# Grille v2 (13/11/2026) : mêmes 7 dimensions et plafonds (100 points), critères enrichis.
+# Le risque territorial et la déclaration de VBG ne sont jamais notés.
+SCORING_V2 = {
+    "code": "VULN",
+    "version": 2,
+    "min_completeness": 0.7,
+    "bands": SCORING_V1["bands"],
+    "dimensions": [
+        {"code": "A", "label": "Conditions de vie et logement", "cap": 20, "items": [
+            {"question": "housing_type", "points": {"street": 6, "precarious": 5, "shared": 3, "rented": 2,
+                                                    "owned": 0}},
+            {"question": "tenure", "points": {"squat": 3, "untitled": 2, "tenant": 1, "titled": 0}},
+            {"question": "water_access", "points": {"none": 4, "shared": 2, "private": 0}},
+            {"question": "electricity", "points": {"none": 3, "informal": 1, "yes": 0}},
+            {"question": "sanitation", "points": {"none": 4, "shared": 2, "private": 0}},
+        ]},
+        {"code": "B", "label": "Santé, handicap et nutrition", "cap": 20, "items": [
+            {"question": "chronic_illness", "points": {"yes": 5, "no": 0}},
+            {"question": "disability", "points": {"severe": 6, "moderate": 4, "none": 0}},
+            {"question": "health_access", "points": {"no": 4, "difficult": 2, "easy": 0}},
+            {"question": "health_coverage", "points": {"no": 2, "yes": 0}},
+            {"question": "child_malnutrition", "points": {"yes": 3, "no": 0}},
+        ]},
+        {"code": "C", "label": "Revenus et sécurité alimentaire", "cap": 20, "items": [
+            {"question": "monthly_income", "points": {"none": 6, "lt25k": 5, "25to60k": 3, "60to120k": 1,
+                                                      "gt120k": 0}},
+            {"question": "activity_status", "points": {"none": 4, "informal": 2, "stable": 0}},
+            {"question": "dependents", "ranges": [
+                {"min": 5, "points": 3}, {"min": 3, "points": 2}, {"min": 1, "points": 1}, {"min": 0, "points": 0}]},
+            {"question": "meals_per_day", "points": {"none": 4, "one": 3, "two": 1, "three": 0}},
+            {"question": "days_without_food", "ranges": [
+                {"min": 4, "points": 3}, {"min": 2, "points": 2}, {"min": 1, "points": 1}, {"min": 0, "points": 0}]},
+        ]},
+        {"code": "D", "label": "Éducation et enfance", "cap": 15, "items": [
+            {"question": "literacy", "points": {"no": 6, "partial": 3, "yes": 0}},
+            {"question": "children_out_of_school", "points": {"yes": 5, "no": 0}},
+            {"question": "child_labour", "points": {"yes": 4, "no": 0}},
+        ]},
+        {"code": "E", "label": "Protection, état civil et juridique", "cap": 10, "items": [
+            {"question": "birth_certificate", "points": {"no": 3, "yes": 0}},
+            {"question": "protection_risk", "points": {"yes": 4, "no": 0}},
+            {"question": "lost_documents", "points": {"yes": 3, "no": 0}},
+        ]},
+        {"code": "F", "label": "Réseau, isolement et chocs subis", "cap": 10, "items": [
+            {"question": "support_network", "points": {"none": 4, "weak": 2, "strong": 0}},
+            {"question": "lives_alone", "points": {"yes": 2, "no": 0}},
+            {"question": "lost_housing", "points": {"yes": 2, "no": 0}},
+            {"question": "lost_livelihood", "points": {"yes": 2, "no": 0}},
+        ]},
+        {"code": "G", "label": "Psychosocial et perception", "cap": 5, "items": [
+            {"question": "self_assessment", "points": {"very_difficult": 5, "difficult": 3, "manageable": 1,
+                                                       "good": 0}},
+        ]},
+    ],
+}

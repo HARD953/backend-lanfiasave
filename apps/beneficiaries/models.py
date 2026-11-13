@@ -195,3 +195,51 @@ class DuplicateCandidate(BaseModel):
     class Meta:
         ordering = ["-confidence"]
         constraints = [models.UniqueConstraint(fields=["person", "other"], name="uniq_duplicate_pair")]
+
+
+class PersonVulnerability(BaseModel):
+    """
+    Situation de vulnérabilité d'une personne (catalogue `vulnerabilities.CATALOG`).
+    « À confirmer » quand elle est déduite d'une enquête ou d'une opération ; « confirmée » par un agent habilité ;
+    « levée » quand la situation a pris fin (l'historique est conservé).
+    """
+
+    class Status(models.TextChoices):
+        SUSPECTED = "suspected", "À confirmer"
+        CONFIRMED = "confirmed", "Confirmée"
+        RESOLVED = "resolved", "Levée"
+
+    class Source(models.TextChoices):
+        SURVEY = "survey", "Enquête"
+        AGENT = "agent", "Agent / travailleur social"
+        OPERATION = "operation", "Opération (déguerpissement, catastrophe…)"
+        REFERRAL = "referral", "Signalement d'une structure"
+
+    organization = models.ForeignKey("organizations.Organization", on_delete=models.PROTECT, related_name="+")
+    person = models.ForeignKey(Person, on_delete=models.PROTECT, related_name="vulnerabilities")
+    category = models.CharField(max_length=40)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.SUSPECTED)
+    source = models.CharField(max_length=20, choices=Source.choices, default=Source.AGENT)
+    notes = models.TextField(blank=True)
+    operation = models.ForeignKey("operations.Operation", null=True, blank=True, on_delete=models.PROTECT,
+                                  related_name="+")
+    recorded_by = models.ForeignKey("accounts.User", null=True, on_delete=models.PROTECT, related_name="+")
+    confirmed_by = models.ForeignKey("accounts.User", null=True, blank=True, on_delete=models.PROTECT,
+                                     related_name="+")
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["category"]
+        constraints = [
+            models.UniqueConstraint(fields=["person", "category"], condition=~Q(status="resolved"),
+                                    name="one_open_vulnerability_per_category"),
+        ]
+        indexes = [models.Index(fields=["organization", "category", "status"])]
+
+    @property
+    def label(self):
+        from .vulnerabilities import BY_CODE
+
+        c = BY_CODE.get(self.category)
+        return c.label if c else self.category
