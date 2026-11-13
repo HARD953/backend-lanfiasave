@@ -255,3 +255,61 @@ QUESTIONNAIRE_V2 = {
         ]},
     ],
 }
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Formulaires courts (13/11/2026). Ce sont des SOUS-ENSEMBLES du questionnaire complet v2 : mêmes codes et mêmes
+# réponses possibles, donc le score v2 et la détection des vulnérabilités s'appliquent sans conversion. Une question
+# non posée compte comme « non renseignée » : le score d'un formulaire court est indicatif (complétude affichée).
+# ---------------------------------------------------------------------------------------------------------------
+
+def _subset(code: str, title: str, keep: list[str]) -> dict:
+    wanted = set(keep)
+    sections = []
+    for s in QUESTIONNAIRE_V2["sections"]:
+        qs = [q for q in s["questions"] if q["code"] in wanted]
+        if qs:
+            sections.append({**s, "questions": qs})
+    found = {q["code"] for s in sections for q in s["questions"]}
+    assert found == wanted, f"Questions inconnues : {wanted - found}"
+    return {"code": code, "version": 1, "title": title, "special_values": SPECIAL_VALUES, "sections": sections}
+
+
+QUESTIONNAIRE_EXPRESS = _subset("RECENSEMENT_EXPRESS", "Recensement express — urgence", [
+    "birth_certificate", "household_size", "dependents", "female_head", "pregnant_lactating",
+    "housing_type", "disability", "chronic_illness", "children_out_of_school", "meals_per_day",
+    "displacement_status", "lost_housing", "lost_livelihood", "lost_documents", "main_need",
+])
+
+QUESTIONNAIRE_STANDARD = _subset("RECENSEMENT_STANDARD", "Recensement standard", [
+    "marital_status", "birth_certificate", "id_document",
+    "household_size", "dependents", "female_head", "pregnant_lactating",
+    "housing_type", "water_access", "electricity", "sanitation",
+    "literacy", "children_out_of_school",
+    "activity_status", "monthly_income",
+    "meals_per_day",
+    "chronic_illness", "disability", "health_access", "health_coverage",
+    "protection_risk",
+    "shock_recent", "shock_type", "lost_housing", "lost_livelihood", "lost_documents",
+    "support_network", "lives_alone",
+    "self_assessment", "main_need",
+])
+
+# Présentation des formulaires aux agents (non stockée dans les versions publiées, qui restent figées).
+QUESTIONNAIRE_VARIANTS = {
+    "RECENSEMENT_EXPRESS": {
+        "variant": "express", "label": "Express", "minutes": 5, "order": 1,
+        "description": "Urgence, déguerpissement, sinistre : l'essentiel pour ouvrir le dossier et aider vite.",
+        "recommended_for": ["eviction", "flood", "landslide", "fire", "conflict", "infrastructure"],
+    },
+    "RECENSEMENT_STANDARD": {
+        "variant": "standard", "label": "Standard", "minutes": 10, "order": 2,
+        "description": "Recensement courant : conditions de vie, revenus, santé, chocs.",
+        "recommended_for": [],
+    },
+    "RECENSEMENT": {
+        "variant": "complete", "label": "Complet", "minutes": 20, "order": 3,
+        "description": "Évaluation approfondie : alimentation, foncier, enfance, protection, zones minières.",
+        "recommended_for": ["mining_project", "illegal_mining", "food_crisis"],
+    },
+}

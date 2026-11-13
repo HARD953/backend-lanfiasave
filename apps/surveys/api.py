@@ -19,19 +19,33 @@ from apps.scoring.api import ScoreResultSerializer
 from apps.scoring.services import score_survey_response
 from apps.territories.models import Territory
 
+from .definitions import QUESTIONNAIRE_VARIANTS
 from .models import QuestionnaireVersion, SurveyResponse
 
 
 class QuestionnaireSerializer(serializers.ModelSerializer):
+    variant = serializers.SerializerMethodField()
+    questions_count = serializers.SerializerMethodField()
+
     class Meta:
         model = QuestionnaireVersion
-        fields = ["id", "code", "version", "title", "status", "published_at", "definition"]
+        fields = ["id", "code", "version", "title", "status", "published_at", "variant", "questions_count",
+                  "definition"]
+
+    def get_variant(self, obj):
+        meta = QUESTIONNAIRE_VARIANTS.get(obj.code, {})
+        return {"variant": meta.get("variant", "other"), "label": meta.get("label", obj.title),
+                "description": meta.get("description", ""), "minutes": meta.get("minutes"),
+                "order": meta.get("order", 99), "recommended_for": meta.get("recommended_for", [])}
+
+    def get_questions_count(self, obj):
+        return sum(len(s["questions"]) for s in obj.definition.get("sections", []))
 
 
 class QuestionnaireViewSet(viewsets.ReadOnlyModelViewSet):
     """Questionnaires publiés (téléchargés par l'application de collecte)."""
 
-    queryset = QuestionnaireVersion.objects.filter(status="published")
+    queryset = QuestionnaireVersion.objects.filter(status="published").order_by("code", "-version")
     serializer_class = QuestionnaireSerializer
     permission_classes = [IsStaffMember]
     pagination_class = None
@@ -39,12 +53,17 @@ class QuestionnaireViewSet(viewsets.ReadOnlyModelViewSet):
 
 class SurveyResponseSerializer(serializers.ModelSerializer):
     questionnaire_label = serializers.CharField(source="questionnaire.__str__", read_only=True)
+    questionnaire_variant = serializers.SerializerMethodField()
     collected_by_name = serializers.CharField(source="collected_by.get_full_name", read_only=True, default=None)
 
     class Meta:
         model = SurveyResponse
-        fields = ["id", "organization", "person", "household", "questionnaire", "questionnaire_label", "answers",
+        fields = ["id", "organization", "person", "household", "questionnaire", "questionnaire_label",
+                  "questionnaire_variant", "answers",
                   "collected_at", "collected_by_name", "device_id", "client_uuid", "created_at"]
+
+    def get_questionnaire_variant(self, obj):
+        return QUESTIONNAIRE_VARIANTS.get(obj.questionnaire.code, {}).get("label", obj.questionnaire.title)
 
     def validate(self, attrs):
         person = attrs.get("person")
