@@ -189,6 +189,7 @@ class Command(BaseCommand):
                 flag_from_survey(resp, users[Role.ENUMERATOR])
 
         self._seed_operations(rng, org, communes, users)
+        self._seed_followup(rng, org, communes, users)
 
         self.stdout.write(self.style.SUCCESS(
             f"Démo prête : {Person.objects.filter(organization=org).count()} personnes synthétiques, "
@@ -253,3 +254,62 @@ class Command(BaseCommand):
                     a.save()
                     case.status = "supported"
                     case.save(update_fields=["status"])
+
+    def _seed_followup(self, rng, org, communes, users):
+        """Plaintes, orientations et visites fictives."""
+        from apps.followup.models import Grievance, Referral, Visit
+        from apps.operations.models import Operation, Partner
+
+        if Grievance.objects.filter(organization=org).exists():
+            return
+        sw = users[Role.SOCIAL_WORKER]
+        persons = list(Person.objects.filter(organization=org).order_by("created_at")[:24])
+        ops = list(Operation.objects.filter(organization=org))
+        partners = list(Partner.objects.filter(organization=org))
+        today = date.today()
+        samples = [
+            ("payment_delay", "high", "phone", "Aide au loyer non reçue"),
+            ("exclusion", "normal", "community", "Ménage non recensé lors du passage"),
+            ("compensation", "high", "in_person", "Montant d'indemnisation contesté"),
+            ("data_correction", "normal", "field_agent", "Nom mal orthographié"),
+            ("information", "normal", "sms", "Date de la prochaine distribution"),
+            ("relocation", "urgent", "phone", "Site d'accueil sans eau"),
+            ("service_quality", "normal", "suggestion_box", "Attente trop longue au guichet"),
+            ("fraud", "high", "phone", "Demande d'argent pour être inscrit"),
+        ]
+        for i, (cat, prio, channel, subject) in enumerate(samples):
+            g = Grievance.objects.create(
+                organization=org, person=None if cat == "fraud" else persons[i], anonymous=cat == "fraud",
+                operation=ops[i % len(ops)] if ops and cat in {"compensation", "relocation", "payment_delay"} else None,
+                territory=communes[i % len(communes)], channel=channel, category=cat, priority=prio,
+                subject=subject, description="Plainte fictive de démonstration.", recorded_by=sw)
+            if i % 3 == 0:
+                g.status, g.resolution, g.resolved_at = "resolved", "Réponse fictive apportée.", timezone.now()
+            elif i % 3 == 1:
+                g.status = "investigating"
+            if i == 1:
+                g.due_date = today - timedelta(days=4)  # en retard
+            g.save()
+        services = ["civil_registry", "cmu", "school", "health", "psychosocial", "employment", "legal"]
+        for i, person in enumerate(persons[:14]):
+            r = Referral.objects.create(
+                organization=org, person=person, service=services[i % len(services)],
+                partner=partners[i % len(partners)] if partners and i % 2 == 0 else None,
+                service_name="" if partners and i % 2 == 0 else "Centre social fictif",
+                reason="Orientation fictive de démonstration.", urgent=i % 5 == 0, referred_by=sw,
+                appointment_date=today + timedelta(days=rng.randint(-10, 15)))
+            if i % 3 == 0:
+                r.status, r.feedback, r.closed_at = "completed", "Service rendu (fictif).", timezone.now()
+                r.save()
+            elif i % 3 == 1:
+                r.status = "accepted"
+                r.save()
+        for i, person in enumerate(persons[:20]):
+            m = person.current_household_membership()
+            Visit.objects.create(
+                organization=org, person=person, household=m.household if m else None,
+                kind=rng.choice(["home", "home", "phone", "office"]),
+                visited_at=today - timedelta(days=rng.randint(5, 60)),
+                trend=rng.choice(["improved", "stable", "stable", "worsened", "critical"]),
+                summary="Visite fictive de démonstration.", visited_by=sw,
+                next_visit_date=today + timedelta(days=rng.randint(-5, 20)) if i % 4 else None)

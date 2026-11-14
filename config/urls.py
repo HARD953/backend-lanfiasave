@@ -23,6 +23,7 @@ from apps.core.api import (
     OverviewReportView,
     TerritoryViewSet,
 )
+from apps.followup.api import GrievanceViewSet, ReferralViewSet, TerritoryReportView, VisitViewSet
 from apps.operations.api import OperationCaseViewSet, OperationViewSet, PartnerViewSet
 from apps.programs.api import ProgramViewSet
 from apps.scoring.api import ScoreResultViewSet
@@ -46,6 +47,9 @@ router.register("partners", PartnerViewSet, basename="partner")
 router.register("operations", OperationViewSet, basename="operation")
 router.register("operation-cases", OperationCaseViewSet, basename="operation-case")
 router.register("assistances", AssistanceViewSet, basename="assistance")
+router.register("grievances", GrievanceViewSet, basename="grievance")
+router.register("referrals", ReferralViewSet, basename="referral")
+router.register("visits", VisitViewSet, basename="visit")
 router.register("admin/users", AdminUserViewSet, basename="admin-user")
 router.register("admin/organizations", AdminOrganizationViewSet, basename="admin-organization")
 
@@ -81,6 +85,7 @@ api_v1 = [
     path("me/cases/", MyCasesView.as_view(), name="my-cases"),
     path("collect/submissions/", CollectSubmissionView.as_view(), name="collect-submission"),
     path("reports/overview/", OverviewReportView.as_view(), name="report-overview"),
+    path("reports/territories/", TerritoryReportView.as_view(), name="report-territories"),
     path("me/profile/", MyProfileView.as_view(), name="my-profile"),
     path("me/applications/", MyApplicationsView.as_view(), name="my-applications"),
     path("me/appeals/", MyAppealCreateView.as_view(), name="my-appeals"),

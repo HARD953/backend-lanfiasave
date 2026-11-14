@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "apps.cases",
     "apps.operations",
     "apps.assistance",
+    "apps.followup",
 ]
 
 MIDDLEWARE = [

@@ -166,6 +166,7 @@ class CatalogsView(APIView):
     def get(self, request):
         from apps.assistance.models import Assistance
         from apps.beneficiaries.vulnerabilities import catalog_payload
+        from apps.followup.api import catalogs_payload as followup_catalogs
         from apps.operations.models import Operation, OperationCase, Partner
 
         def ch(choices):
@@ -181,6 +182,7 @@ class CatalogsView(APIView):
             "case_needs": ch(OperationCase.NEEDS),
             "occupancy": ch(OperationCase.Occupancy.choices),
             "partner_kinds": ch(Partner.Kind.choices),
+            **followup_catalogs(),
         })
 
 
