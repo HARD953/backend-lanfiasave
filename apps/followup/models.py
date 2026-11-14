@@ -1,15 +1,13 @@
 """
 Suivi social : plaintes, orientations et visites.
 
-Inspiré des pratiques reconnues des grands registres sociaux et filets sociaux :
-- Mécanisme de gestion des plaintes (Banque mondiale ; Inua Jamii au Kenya ; Pantawid 4Ps aux Philippines) :
-  canaux multiples dont anonyme, accusé de réception, délai de traitement selon la gravité, escalade,
-  confidentialité renforcée pour les plaintes d'exploitation / abus sexuels (EAS) et de fraude.
-- Orientation et contre-référence (SUAS au Brésil, Chile Solidario) : la personne est orientée vers un
-  service, et le service confirme la prise en charge. Une orientation sans retour reste « en attente ».
-- Visites de suivi (accompagnement familial PAIF au Brésil, Puente au Chili, programmes de graduation) :
-  visites régulières, évolution de la situation, date de la prochaine visite.
-- Revisite des ménages (Cadastro Único : mise à jour tous les 24 mois) : calculée à partir de la dernière enquête.
+- Mécanisme de gestion des plaintes : canaux multiples dont anonyme, accusé de réception, délai de traitement
+  selon la gravité, escalade, confidentialité renforcée pour les plaintes d'exploitation / abus sexuels (EAS)
+  et de fraude.
+- Orientation et contre-référence : la personne est orientée vers un service (CMU, état civil, école…), et le
+  service confirme la prise en charge. Une orientation sans retour reste « en attente ».
+- Visites de suivi : visites régulières, évolution de la situation, date de la prochaine visite.
+- Revisite des ménages : mise à jour au moins tous les 24 mois, calculée à partir de la dernière enquête.
 """
 from datetime import timedelta
 

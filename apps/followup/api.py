@@ -14,7 +14,7 @@ from apps.core.permissions import IsBeneficiary, IsStaffMember, OrgScopedViewSet
 
 from .models import Grievance, Referral, Visit
 
-RECERTIFICATION_MONTHS = 24  # Cadastro Único (Brésil) : mise à jour au moins tous les 2 ans.
+RECERTIFICATION_MONTHS = 24  # Mise à jour de la situation du ménage au moins tous les 2 ans.
 
 
 def _same_org(attrs, org_id, fields):

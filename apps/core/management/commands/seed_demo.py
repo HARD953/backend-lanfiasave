@@ -190,6 +190,7 @@ class Command(BaseCommand):
 
         self._seed_operations(rng, org, communes, users)
         self._seed_followup(rng, org, communes, users)
+        self._seed_poverty_history(rng, org, users)
 
         self.stdout.write(self.style.SUCCESS(
             f"Démo prête : {Person.objects.filter(organization=org).count()} personnes synthétiques, "
@@ -254,6 +255,24 @@ class Command(BaseCommand):
                     a.save()
                     case.status = "supported"
                     case.save(update_fields=["status"])
+
+    def _seed_poverty_history(self, rng, org, users):
+        """Évaluations de départ fictives (il y a 7 à 10 mois) pour illustrer les trajectoires de pauvreté."""
+        if SurveyResponse.objects.filter(organization=org,
+                                         collected_at__lt=timezone.now() - timedelta(days=150)).exists():
+            return
+        worse = {"monthly_income": "lt25k", "meals_per_day": "one", "children_out_of_school": "yes",
+                 "health_coverage": "no", "activity_status": "none", "housing_type": "precarious"}
+        latest = SurveyResponse.objects.filter(organization=org, household__isnull=False).order_by("created_at")
+        for resp in latest[:16]:
+            before = dict(resp.answers)
+            for k, v in worse.items():
+                if rng.random() < 0.6:
+                    before[k] = v
+            SurveyResponse.objects.create(
+                organization=org, person=resp.person, household=resp.household, questionnaire=resp.questionnaire,
+                answers=before, collected_at=timezone.now() - timedelta(days=rng.randint(210, 300)),
+                collected_by=users[Role.ENUMERATOR], client_uuid=uuid.uuid4())
 
     def _seed_followup(self, rng, org, communes, users):
         """Plaintes, orientations et visites fictives."""

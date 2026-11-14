@@ -32,6 +32,7 @@ from apps.followup.api import (
     VisitViewSet,
 )
 from apps.operations.api import OperationCaseViewSet, OperationViewSet, PartnerViewSet
+from apps.poverty.api import IndicatorFrameworkView, IndicatorTargetView, PovertyReportView
 from apps.programs.api import ProgramViewSet
 from apps.scoring.api import ScoreResultViewSet
 from apps.surveys.api import CollectSubmissionView, QuestionnaireViewSet, SurveyResponseViewSet
@@ -93,6 +94,9 @@ api_v1 = [
     path("collect/submissions/", CollectSubmissionView.as_view(), name="collect-submission"),
     path("reports/overview/", OverviewReportView.as_view(), name="report-overview"),
     path("reports/territories/", TerritoryReportView.as_view(), name="report-territories"),
+    path("reports/poverty/", PovertyReportView.as_view(), name="report-poverty"),
+    path("reports/indicators/", IndicatorFrameworkView.as_view(), name="report-indicators"),
+    path("reports/indicators/targets/", IndicatorTargetView.as_view(), name="report-indicator-targets"),
     path("me/profile/", MyProfileView.as_view(), name="my-profile"),
     path("me/applications/", MyApplicationsView.as_view(), name="my-applications"),
     path("me/appeals/", MyAppealCreateView.as_view(), name="my-appeals"),

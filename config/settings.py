@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "apps.operations",
     "apps.assistance",
     "apps.followup",
+    "apps.poverty",
 ]
 
 MIDDLEWARE = [
