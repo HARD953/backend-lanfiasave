@@ -23,7 +23,14 @@ from apps.core.api import (
     OverviewReportView,
     TerritoryViewSet,
 )
-from apps.followup.api import GrievanceViewSet, ReferralViewSet, TerritoryReportView, VisitViewSet
+from apps.followup.api import (
+    GrievanceViewSet,
+    MyGrievanceFeedbackView,
+    MyGrievancesView,
+    ReferralViewSet,
+    TerritoryReportView,
+    VisitViewSet,
+)
 from apps.operations.api import OperationCaseViewSet, OperationViewSet, PartnerViewSet
 from apps.programs.api import ProgramViewSet
 from apps.scoring.api import ScoreResultViewSet
@@ -89,6 +96,8 @@ api_v1 = [
     path("me/profile/", MyProfileView.as_view(), name="my-profile"),
     path("me/applications/", MyApplicationsView.as_view(), name="my-applications"),
     path("me/appeals/", MyAppealCreateView.as_view(), name="my-appeals"),
+    path("me/grievances/", MyGrievancesView.as_view(), name="my-grievances"),
+    path("me/grievances/<uuid:pk>/feedback/", MyGrievanceFeedbackView.as_view(), name="my-grievance-feedback"),
     path("", include(router.urls)),
 ]
 

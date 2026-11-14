@@ -118,3 +118,58 @@ def test_territory_report_masks_small_cells(client_for, make_user, enumerator, o
 def test_catalogs_expose_followup_choices(client_for, social_worker):
     data = client_for(social_worker).get("/api/v1/catalogs/").data
     assert {"grievance_categories", "referral_services", "visit_kinds"} <= set(data)
+
+
+def _beneficiary_client(sw_client, person):
+    from django.core.cache import cache
+    from rest_framework.test import APIClient
+
+    cache.clear()  # la limite de connexions (10/min) est partagée entre les tests
+    access = sw_client.post(f"/api/v1/persons/{person.pk}/beneficiary-access/").data
+    c = APIClient()
+    tok = c.post("/api/v1/auth/beneficiary/login/", {"identifier": access["identifier"], "pin": access["pin"]},
+                 format="json").data["access"]
+    c.credentials(HTTP_AUTHORIZATION=f"Bearer {tok}")
+    return c
+
+
+def test_beneficiary_reports_problem_and_rates_answer(client_for, social_worker, org, person):
+    sw = client_for(social_worker)
+    me = _beneficiary_client(sw, person)
+    assert me.post("/api/v1/me/grievances/", {"category": "fraud", "description": "court"},
+                   format="json").status_code == 400
+    r = me.post("/api/v1/me/grievances/", {"category": "fraud", "callback": True,
+                                           "description": "Un agent m'a demandé 5000 F pour m'inscrire."},
+                format="json")
+    assert r.status_code == 201, r.content
+    g = Grievance.objects.get(pk=r.data["id"])
+    assert (g.channel, g.priority, g.person_id, g.organization_id) == ("app", "high", person.pk, org.pk)
+    assert "rappelée" in g.description
+    # Le personnel la voit dans sa file ; la personne ne voit que les siennes, sans notes internes.
+    assert any(x["id"] == str(g.pk) for x in sw.get("/api/v1/grievances/").data["results"])
+    # Pas d'évaluation avant la réponse.
+    assert me.post(f"/api/v1/me/grievances/{g.pk}/feedback/", {"satisfaction": "satisfied"},
+                   format="json").status_code == 400
+    assert sw.post(f"/api/v1/grievances/{g.pk}/transition/",
+                   {"status": "resolved", "note": "Agent suspendu, inscription refaite gratuitement."},
+                   format="json").status_code == 200
+    mine = me.get("/api/v1/me/grievances/").data
+    assert mine["results"][0]["answered"] and "suspendu" in mine["results"][0]["resolution"]
+    assert {c["value"] for c in mine["categories"]} >= {"sea", "fraud", "payment_delay"}
+    assert me.post(f"/api/v1/me/grievances/{g.pk}/feedback/", {"satisfaction": "partly"},
+                   format="json").status_code == 200
+    assert Grievance.objects.get(pk=g.pk).satisfaction == "partly"
+    # Personnel et autres bénéficiaires n'ont pas accès à ces routes / à cette plainte.
+    assert sw.get("/api/v1/me/grievances/").status_code == 403
+    other = Person.objects.create(organization=org, first_name="Yao")
+    assert _beneficiary_client(sw, other).post(f"/api/v1/me/grievances/{g.pk}/feedback/",
+                                               {"satisfaction": "satisfied"}, format="json").status_code == 404
+
+
+def test_beneficiary_open_grievances_are_capped(client_for, social_worker, person):
+    me = _beneficiary_client(client_for(social_worker), person)
+    for _ in range(5):
+        payload = {"category": "information", "description": "Quand aura lieu la distribution ?"}
+        assert me.post("/api/v1/me/grievances/", payload, format="json").status_code == 201
+    assert me.post("/api/v1/me/grievances/", {"category": "information", "description": "Encore une question ici."},
+                   format="json").status_code == 400

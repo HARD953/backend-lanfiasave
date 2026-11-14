@@ -2,14 +2,15 @@ from datetime import timedelta
 
 from django.db.models import Count, F, Max, Q, Sum
 from django.utils import timezone
-from rest_framework import mixins, serializers, viewsets
+from rest_framework import mixins, serializers, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.core.audit import audit
 from apps.core.exceptions import IllegalTransition
-from apps.core.permissions import IsStaffMember, OrgScopedViewSetMixin
+from apps.core.permissions import IsBeneficiary, IsStaffMember, OrgScopedViewSetMixin
 
 from .models import Grievance, Referral, Visit
 
@@ -417,6 +418,104 @@ class TerritoryReportView(APIView):
             result.append(r)
         result.sort(key=lambda r: (-(r["vulnerable_persons"] or 0), -(r["households"] or 0)))
         return Response({"min_cell": MIN_CELL, "territories": result})
+
+
+# ---------------------------------------------------------------------------
+# Côté bénéficiaire (app Mon Parcours) : « Signaler un problème »
+# ---------------------------------------------------------------------------
+# Catégories proposées dans l'app, en langage simple (pas « inclusion indue » côté personne).
+BENEFICIARY_CATEGORIES = [
+    ("payment_delay", "Mon aide est en retard"),
+    ("payment_amount", "Mon aide est incomplète"),
+    ("compensation", "Mon indemnisation"),
+    ("relocation", "Mon relogement / le site d'accueil"),
+    ("data_correction", "Une erreur dans mon dossier"),
+    ("exclusion", "Un proche n'a pas été recensé"),
+    ("service_quality", "Mauvais accueil / service"),
+    ("staff_conduct", "Comportement d'un agent"),
+    ("fraud", "On m'a demandé de l'argent"),
+    ("sea", "Abus ou harcèlement sexuel"),
+    ("information", "J'ai une question"),
+    ("other", "Autre problème"),
+]
+BENEFICIARY_PRIORITY = {"sea": Grievance.Priority.URGENT, "fraud": Grievance.Priority.HIGH,
+                        "staff_conduct": Grievance.Priority.HIGH, "relocation": Grievance.Priority.HIGH}
+MAX_OPEN_FROM_APP = 5  # anti-abus : au-delà, la personne est invitée à contacter son agent.
+
+
+def _public_grievance(g):
+    answered = g.status in {"resolved", "rejected", "closed"}
+    return {
+        "id": str(g.id), "reference": g.reference, "category": g.category,
+        "category_label": dict(BENEFICIARY_CATEGORIES).get(g.category, g.get_category_display()),
+        "subject": g.subject, "status": g.status,
+        "status_label": "Réponse donnée" if answered else ("En cours de traitement"
+                                                            if g.status != "received" else "Reçue"),
+        "answered": answered, "created_at": g.created_at, "due_date": g.due_date,
+        "resolution": g.resolution if answered else "", "satisfaction": g.satisfaction,
+    }
+
+
+class MyGrievanceSerializer(serializers.Serializer):
+    category = serializers.ChoiceField(choices=BENEFICIARY_CATEGORIES)
+    description = serializers.CharField(min_length=10, max_length=3000, trim_whitespace=True, error_messages={
+        "min_length": "Décrivez le problème en quelques mots (10 caractères minimum)."})
+    callback = serializers.BooleanField(default=False)
+
+
+class MyGrievancesView(APIView):
+    """Plaintes déposées par le bénéficiaire lui-même. Il ne voit que les siennes, sans notes internes."""
+
+    permission_classes = [IsAuthenticated, IsBeneficiary]
+
+    def get(self, request):
+        qs = Grievance.objects.filter(person=request.user.beneficiary).order_by("-created_at")
+        return Response({"results": [_public_grievance(g) for g in qs],
+                         "categories": [{"value": v, "label": label} for v, label in BENEFICIARY_CATEGORIES]})
+
+    def post(self, request):
+        person = request.user.beneficiary
+        ser = MyGrievanceSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        open_count = Grievance.objects.filter(person=person, channel=Grievance.Channel.APP,
+                                              status__in=Grievance.OPEN).count()
+        if open_count >= MAX_OPEN_FROM_APP:
+            raise serializers.ValidationError({"category": "Vous avez déjà plusieurs signalements en cours. "
+                                                           "Contactez votre agent pour en ajouter un autre."})
+        cat = ser.validated_data["category"]
+        description = ser.validated_data["description"]
+        if ser.validated_data["callback"]:
+            description += "\n\n[La personne souhaite être rappelée.]"
+        g = Grievance.objects.create(
+            organization=person.organization, person=person, territory=person.territory,
+            channel=Grievance.Channel.APP, category=cat,
+            priority=BENEFICIARY_PRIORITY.get(cat, Grievance.Priority.NORMAL),
+            subject=dict(BENEFICIARY_CATEGORIES)[cat], description=description,
+            recorded_by=request.user,
+        )
+        audit("grievance.received", obj=g, data={"category": g.category, "priority": g.priority, "channel": "app"})
+        return Response(_public_grievance(g), status=status.HTTP_201_CREATED)
+
+
+class MyGrievanceFeedbackView(APIView):
+    """La personne dit si la réponse lui convient (boucle de retour, comme Inua Jamii / 4Ps)."""
+
+    permission_classes = [IsAuthenticated, IsBeneficiary]
+
+    def post(self, request, pk):
+        g = Grievance.objects.filter(pk=pk, person=request.user.beneficiary).first()
+        if g is None:
+            return Response({"error": {"code": "not_found", "message": "Signalement introuvable."}},
+                            status=status.HTTP_404_NOT_FOUND)
+        value = request.data.get("satisfaction")
+        if value not in {"satisfied", "partly", "unsatisfied"}:
+            raise serializers.ValidationError({"satisfaction": "Choix invalide."})
+        if g.status not in {"resolved", "rejected", "closed"}:
+            raise serializers.ValidationError({"satisfaction": "Aucune réponse à évaluer pour l'instant."})
+        g.satisfaction = value
+        g.save(update_fields=["satisfaction", "updated_at"])
+        audit("grievance.feedback", obj=g, data={"satisfaction": value})
+        return Response(_public_grievance(g))
 
 
 def catalogs_payload():
