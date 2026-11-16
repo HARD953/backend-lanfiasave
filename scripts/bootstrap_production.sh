@@ -2,7 +2,9 @@
 # Crée le premier administrateur sur la base de PRODUCTION, depuis votre poste.
 # L'URL de la base et le mot de passe sont saisis de façon masquée : rien n'est affiché ni enregistré.
 #
-#   ./scripts/bootstrap_production.sh
+#   ./scripts/bootstrap_production.sh                      # premier administrateur (portail)
+#   ./scripts/bootstrap_production.sh create_account       # compte agent recenseur (app Collecte)
+#   ./scripts/bootstrap_production.sh create_account --role social_worker
 #
 # L'URL se trouve dans Vercel → projet backend → Settings → Environment Variables → DATABASE_URL
 # (ou dans Neon → Connection string).
@@ -12,6 +14,9 @@ cd "$(dirname "$0")/.."
 PYTHON=".venv/bin/python"
 [ -x "$PYTHON" ] || PYTHON="python3"
 
+COMMAND="bootstrap_admin"
+if [ "${1:-}" = "create_account" ]; then COMMAND="create_account"; shift; fi
+
 printf "Collez l'URL DATABASE_URL de production (saisie masquée) : "
 IFS= read -rs DATABASE_URL
 echo
@@ -19,4 +24,4 @@ echo
 
 # Clé temporaire : la commande n'émet ni jeton ni cookie, elle écrit seulement en base.
 DJANGO_SECRET_KEY="bootstrap-$(openssl rand -hex 32)" DJANGO_DEBUG=false DATABASE_URL="$DATABASE_URL" \
-  "$PYTHON" manage.py bootstrap_admin "$@"
+  "$PYTHON" manage.py "$COMMAND" "$@"
