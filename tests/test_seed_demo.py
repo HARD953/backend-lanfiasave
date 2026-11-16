@@ -21,3 +21,16 @@ def test_seed_demo_is_rich_and_idempotent(monkeypatch):
     assert len({t["name"] for t in stats["territories"]}) == 10
     call_command("seed_demo")
     assert Household.objects.filter(organization=org).count() == count
+
+
+def test_seed_demo_into_existing_organization(org, monkeypatch):
+    """En production : la démo va dans l'organisation réelle, sans aucun compte fictif utilisable."""
+    from apps.accounts.models import User
+
+    monkeypatch.setenv("DEMO_PASSWORD", "Demo-Test-2026!")
+    call_command("seed_demo", organization=org.code)
+    assert Household.objects.filter(organization=org).count() >= 200
+    assert not Organization.objects.filter(code__in=["demo-ong", "demo-fondation"]).exists()
+    assert not User.objects.filter(username__in=["admin.tech", "autre.org"]).exists()
+    fake = User.objects.filter(memberships__organization=org).distinct()
+    assert fake.exists() and not any(u.has_usable_password() for u in fake)

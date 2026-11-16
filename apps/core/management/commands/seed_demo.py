@@ -1,16 +1,19 @@
 """
 Jeu de données de démonstration ENTIÈREMENT SYNTHÉTIQUE (cahier §22 : jamais de vraies CNI, santé ou paiements).
 
-    python manage.py seed_demo
+    python manage.py seed_demo                              # base locale : organisation fictive + comptes de démo
+    python manage.py seed_demo --organization lanfiatech    # charge la démo dans une organisation existante
 
 Le mot de passe des comptes de démonstration vient de DEMO_PASSWORD (voir .env.example).
+Avec --organization, DEMO_PASSWORD est ignoré : les agents fictifs (auteurs des données) ne peuvent pas se
+connecter ; seuls vos propres comptes ouvrent le portail.
 """
 import os
 import random
 import uuid
 from datetime import date, timedelta
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
@@ -77,18 +80,28 @@ CHOICES = {
 class Command(BaseCommand):
     help = "Crée un jeu de démonstration synthétique (idempotent)."
 
+    def add_arguments(self, parser):
+        parser.add_argument("--organization", help="Code d'une organisation existante où charger la démo")
+
     @transaction.atomic
     def handle(self, *args, **options):
         rng = random.Random(2026)
         password = os.getenv("DEMO_PASSWORD")
-        if not password:
+        target = options.get("organization")
+        if target:
+            password = None  # base réelle : aucun compte fictif ne doit pouvoir se connecter
+        if not password and not target:
             self.stderr.write("DEMO_PASSWORD n'est pas défini (voir .env.example).")
             return
 
-        org, _ = Organization.objects.get_or_create(
-            code="demo-ong", defaults={"name": "ONG Démo Solidarité (fictive)", "kind": "ngo"})
-        other_org, _ = Organization.objects.get_or_create(
-            code="demo-fondation", defaults={"name": "Fondation Démo (fictive, isolée)", "kind": "foundation"})
+        if target:
+            org = Organization.objects.filter(code=target).first()
+            if org is None:
+                raise CommandError(f"Organisation « {target} » introuvable : créez d'abord l'administrateur.")
+            self.stdout.write(f"Chargement de la démo dans « {org.name} »… (plusieurs minutes sur une base distante)")
+        else:
+            org, _ = Organization.objects.get_or_create(
+                code="demo-ong", defaults={"name": "ONG Démo Solidarité (fictive)", "kind": "ngo"})
 
         ci, _ = Territory.objects.get_or_create(code="CI", defaults={"name": "Côte d'Ivoire", "level": "country",
                                                                      "reliability": "official"})
@@ -109,10 +122,21 @@ class Command(BaseCommand):
             u, created = User.objects.get_or_create(username=username,
                                                     defaults={"first_name": first, "last_name": last})
             if created:
-                u.set_password(password)
+                if password:
+                    u.set_password(password)
+                else:
+                    u.set_unusable_password()  # agent fictif : auteur des données, ne peut pas se connecter
                 u.save()
             Membership.objects.get_or_create(user=u, organization=org, role=role, program=None)
             users[role] = u
+        if not target:
+            self._seed_isolation_accounts(password)
+        self._seed_data(rng, org, communes, users, password)
+
+    def _seed_isolation_accounts(self, password):
+        """Comptes techniques et organisation isolée : seulement sur une base de démonstration."""
+        other_org, _ = Organization.objects.get_or_create(
+            code="demo-fondation", defaults={"name": "Fondation Démo (fictive, isolée)", "kind": "foundation"})
         tech, created = User.objects.get_or_create(username="admin.tech", defaults={
             "first_name": "Admin", "last_name": "Technique", "is_staff": True, "is_superuser": True})
         if created:
@@ -125,6 +149,7 @@ class Command(BaseCommand):
             iso.save()
         Membership.objects.get_or_create(user=iso, organization=other_org, role=Role.SOCIAL_WORKER, program=None)
 
+    def _seed_data(self, rng, org, communes, users, password):
         qv, _ = QuestionnaireVersion.objects.get_or_create(
             code=QUESTIONNAIRE_V2["code"], version=QUESTIONNAIRE_V2["version"],
             defaults={"title": QUESTIONNAIRE_V2["title"], "definition": QUESTIONNAIRE_V2, "status": "published",

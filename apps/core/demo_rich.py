@@ -183,7 +183,10 @@ class Enricher:
             u, created = User.objects.get_or_create(username=username,
                                                     defaults={"first_name": first, "last_name": last})
             if created:
-                u.set_password(password)
+                if password:
+                    u.set_password(password)
+                else:
+                    u.set_unusable_password()  # compte fictif : auteur des données, ne peut pas se connecter
                 u.save()
             Membership.objects.get_or_create(user=u, organization=self.org, role=role, program=None)
             (self.enumerators if role == Role.ENUMERATOR else self.social_workers).append(u)
