@@ -487,6 +487,7 @@ class Enricher:
                 self.apply(head, latest, program, baseline_day)
                 heads.append(head)
                 created += 1
+            self.log(f"  {commune.name} : {n} ménages ({created}/{sum(c[4] for c in self.communes)})")
         self.grievances(heads)
         return created
 

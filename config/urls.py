@@ -11,6 +11,17 @@ from apps.accounts.api import BeneficiaryLoginView, LoginView, MeView
 from apps.assistance.api import AssistanceViewSet
 from apps.beneficiaries.api import HouseholdViewSet, PersonViewSet, VulnerabilityViewSet
 from apps.cases.api import AppealViewSet, ApplicationViewSet, DecisionViewSet
+from apps.claims.api import AppealViewSet as ClaimAppealViewSet
+from apps.claims.api import (
+    ClaimMetaView,
+    ClaimViewSet,
+    EvaluationView,
+    OperatorListView,
+    PaymentViewSet,
+    ProtectedViewSet,
+    SmsInboundView,
+)
+from apps.claims.reports import FairnessView, MinistryDashboardView
 from apps.core.api import (
     AuditEventViewSet,
     CatalogsView,
@@ -59,6 +70,10 @@ router.register("grievances", GrievanceViewSet, basename="grievance")
 router.register("referrals", ReferralViewSet, basename="referral")
 router.register("visits", VisitViewSet, basename="visit")
 router.register("admin/users", AdminUserViewSet, basename="admin-user")
+router.register("claims", ClaimViewSet, basename="claim")
+router.register("claim-appeals", ClaimAppealViewSet, basename="claim-appeal")
+router.register("claim-payments", PaymentViewSet, basename="claim-payment")
+router.register("protected-reports", ProtectedViewSet, basename="protected-report")
 router.register("admin/organizations", AdminOrganizationViewSet, basename="admin-organization")
 
 
@@ -97,6 +112,12 @@ api_v1 = [
     path("reports/poverty/", PovertyReportView.as_view(), name="report-poverty"),
     path("reports/indicators/", IndicatorFrameworkView.as_view(), name="report-indicators"),
     path("reports/indicators/targets/", IndicatorTargetView.as_view(), name="report-indicator-targets"),
+    path("claims-meta/", ClaimMetaView.as_view(), name="claims-meta"),
+    path("operator-lists/", OperatorListView.as_view(), name="operator-lists"),
+    path("evaluation/samples/", EvaluationView.as_view(), name="evaluation-samples"),
+    path("integrations/sms/inbound/", SmsInboundView.as_view(), name="sms-inbound"),
+    path("reports/ministry/", MinistryDashboardView.as_view(), name="report-ministry"),
+    path("reports/ministry/fairness/", FairnessView.as_view(), name="report-fairness"),
     path("me/profile/", MyProfileView.as_view(), name="my-profile"),
     path("me/applications/", MyApplicationsView.as_view(), name="my-applications"),
     path("me/appeals/", MyAppealCreateView.as_view(), name="my-appeals"),

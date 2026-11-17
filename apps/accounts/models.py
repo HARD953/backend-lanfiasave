@@ -61,6 +61,9 @@ class Membership(BaseModel):
                                 related_name="memberships")
     territory = models.ForeignKey("territories.Territory", null=True, blank=True, on_delete=models.PROTECT,
                                   related_name="memberships")
+    partner = models.ForeignKey("operations.Partner", null=True, blank=True, on_delete=models.PROTECT,
+                                related_name="memberships",
+                                help_text="Structure représentée (ex. exploitant) : limite l'accès à ses réclamations")
     is_active = models.BooleanField(default=True)
     valid_until = models.DateField(null=True, blank=True)
 

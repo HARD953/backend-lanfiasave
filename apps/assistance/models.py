@@ -40,6 +40,8 @@ class Assistance(BaseModel):
     person = models.ForeignKey("beneficiaries.Person", on_delete=models.PROTECT, related_name="assistances")
     household = models.ForeignKey("beneficiaries.Household", null=True, blank=True, on_delete=models.PROTECT,
                                   related_name="assistances")
+    claim = models.ForeignKey("claims.Claim", null=True, blank=True, on_delete=models.PROTECT,
+                              related_name="assistances")
     operation_case = models.ForeignKey("operations.OperationCase", null=True, blank=True, on_delete=models.PROTECT,
                                        related_name="assistances")
     program = models.ForeignKey("programs.Program", null=True, blank=True, on_delete=models.PROTECT,

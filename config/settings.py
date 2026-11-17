@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.assistance",
     "apps.followup",
     "apps.poverty",
+    "apps.claims",
 ]
 
 MIDDLEWARE = [

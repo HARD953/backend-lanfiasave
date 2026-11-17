@@ -213,13 +213,17 @@ class Command(BaseCommand):
                 detect_duplicates(p)
                 flag_from_survey(resp, users[Role.ENUMERATOR])
 
+        self.stdout.write("Ménages de base, opérations et suivi…")
         self._seed_operations(rng, org, communes, users)
         self._seed_followup(rng, org, communes, users)
         self._seed_poverty_history(rng, org, users)
         from apps.core.demo_rich import enrich
+        self.stdout.write("Enrichissement par commune :")
         added = enrich(rng, org, qv, users, password, self.stdout.write)
         if added:
             self.stdout.write(f"Enrichissement : {added} ménages synthétiques ajoutés dans 10 communes.")
+        from apps.core.demo_mmpe import seed_pilot
+        seed_pilot(rng, org, users, password, self.stdout.write)
 
         self.stdout.write(self.style.SUCCESS(
             f"Démo prête : {Person.objects.filter(organization=org).count()} personnes synthétiques, "

@@ -20,6 +20,15 @@ class Role(models.TextChoices):
     FINANCE_OFFICER = "finance_officer", "Responsable financier"
     FUNDER = "funder", "Donateur / financeur"
     AUDITOR = "auditor", "Auditeur / DPO"
+    # Dispositif d'accompagnement des ménages affectés (mines, pétrole, énergie)
+    RELAY = "relay", "Relais communautaire"
+    TECHNICAL_SERVICE = "technical_service", "Service technique (agriculture, hydraulique, pêche, mines)"
+    PREFECT = "prefect", "Préfet / sous-préfet (validation, urgences)"
+    APPEAL_INDEPENDENT = "appeal_independent", "Membre indépendant de la commission de recours"
+    PAYER = "payer", "Payeur / opérateur de paiement"
+    OPERATOR = "operator", "Exploitant (mine, pétrole, énergie)"
+    MINISTRY = "ministry", "Ministère (vue agrégée sans nom)"
+    EVALUATOR = "evaluator", "Évaluateur indépendant"
 
 
 P = {
@@ -73,6 +82,24 @@ P = {
     "referral.manage": "Orienter une personne et saisir le retour du service",
     "visit.view": "Consulter les visites de suivi",
     "visit.record": "Enregistrer une visite de suivi",
+    # Demandes des ménages affectés (circuit : enregistrement → décision motivée → recours)
+    "claim.create": "Enregistrer une demande et remettre le récépissé",
+    "claim.view_own": "Voir les demandes qu'on a saisies, jusqu'à leur transmission",
+    "claim.view": "Consulter les demandes de sa zone",
+    "claim.process": "Trier, vérifier, orienter et suivre une demande (cellule locale)",
+    "claim.technical_opinion": "Donner l'avis du service technique",
+    "claim.propose": "Proposer une décision motivée (comité local)",
+    "claim.validate": "Valider une décision (préfet ou délégué)",
+    "claim.urgent_order": "Ordonner une mesure d'urgence (72 h)",
+    "claim.appeal_file": "Enregistrer une contestation",
+    "claim.appeal_resolve": "Statuer en commission de recours",
+    "claim.operator": "Recevoir et répondre aux réclamations transmises (exploitant)",
+    "claim.pay": "Exécuter les paiements validés",
+    "claim.evaluate": "Auditer un échantillon de dossiers tiré au sort",
+    "claim.import_list": "Importer la liste des personnes affectées de l'exploitant",
+    "protected.view": "Voir et traiter les plaintes confidentielles et les représailles",
+    "protected.file": "Enregistrer une plainte confidentielle",
+    "report.ministry": "Consulter le tableau de bord agrégé du dispositif",
 }
 
 _VIEW = {"territory.view", "person.view", "survey.view", "score.view", "program.view", "application.view"}
@@ -115,6 +142,33 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     Role.AUDITOR: {"audit.view", "report.aggregate", "program.view", "operation.view", "assistance.view",
                    "partner.view",
         "grievance.view", "referral.view", "visit.view"},
+    Role.RELAY: {"claim.create", "claim.view_own", "protected.file", "territory.view"},
+    Role.TECHNICAL_SERVICE: {"claim.view", "claim.technical_opinion", "territory.view"},
+    Role.PREFECT: {"claim.view", "claim.validate", "claim.urgent_order", "claim.appeal_resolve", "report.ministry",
+                   "territory.view"},
+    Role.APPEAL_INDEPENDENT: {"claim.view", "claim.appeal_resolve", "protected.view", "protected.file",
+                              "territory.view"},
+    Role.PAYER: {"claim.pay"},
+    Role.OPERATOR: {"claim.operator"},
+    Role.MINISTRY: {"report.ministry", "territory.view"},
+    Role.EVALUATOR: {"claim.evaluate", "report.ministry", "territory.view"},
 }
+
+# Dispositif MMPE : droits ajoutés aux rôles existants.
+_CLAIM_EXTRA = {
+    Role.ORG_ADMIN: {"claim.view", "report.ministry", "protected.file"},
+    Role.PROGRAM_MANAGER: {"claim.view", "claim.import_list", "report.ministry", "protected.file"},
+    Role.SOCIAL_WORKER: {"claim.create", "claim.view", "claim.process", "claim.appeal_file", "claim.import_list",
+                         "protected.file"},
+    Role.COMMITTEE_MEMBER: {"claim.view", "claim.propose"},
+    Role.FIELD_SUPERVISOR: {"claim.create", "claim.view", "claim.process", "claim.appeal_file", "protected.file"},
+    Role.ENUMERATOR: {"claim.create", "claim.view_own", "protected.file"},
+    Role.AUDITOR: {"report.ministry"},
+}
+for _role, _perms in _CLAIM_EXTRA.items():
+    ROLE_PERMISSIONS[_role] = ROLE_PERMISSIONS[_role] | _perms
+
+# Rôles qui ne voient JAMAIS de données nominatives dans le dispositif (tableau de bord agrégé seulement).
+AGGREGATE_ONLY_ROLES = {Role.MINISTRY}
 
 assert all(p in P for perms in ROLE_PERMISSIONS.values() for p in perms), "Permission inconnue dans la matrice"

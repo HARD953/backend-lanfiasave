@@ -144,6 +144,7 @@ class Referral(BaseModel):
         EMPLOYMENT = "employment", "Emploi / formation (AEJ, FDFP…)"
         FINANCIAL = "financial", "Inclusion financière (compte, mobile money, microfinance)"
         HOUSING = "housing", "Logement / relogement"
+        RSU = "rsu", "Inscription au Registre social unique (gratuite)"
         OTHER = "other", "Autre service"
 
     class Status(models.TextChoices):
